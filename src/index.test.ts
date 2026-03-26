@@ -44,6 +44,7 @@ const EXTRACT_DIR = '/tmp/upterm-unique-a1b2c3d4';
 // Helper to get expected paths based on mocked os.tmpdir()
 const UPTERM_DATA_DIR = '/mock-tmp/upterm-data';
 const TIMEOUT_FLAG_PATH = path.join(UPTERM_DATA_DIR, 'timeout-flag');
+const SSH_CONFIG_PATH = path.join('/mock-home', '.ssh', 'config');
 
 describe('upterm GitHub integration', () => {
   const originalPlatform = process.platform;
@@ -71,6 +72,8 @@ describe('upterm GitHub integration', () => {
     });
     (mockFs.readdirSync as jest.Mock).mockReturnValue(['id_rsa', 'id_ed25519', 'hello.sock']);
     when(core.getInput).calledWith('upterm-version').mockReturnValue('');
+    when(core.getInput).calledWith('upterm-host-extra-args').mockReturnValue('');
+    when(core.getInput).calledWith('ssh-client-config-append').mockReturnValue('');
   });
 
   afterAll(() => {
@@ -183,6 +186,87 @@ describe('upterm GitHub integration', () => {
     expect(core.info).toHaveBeenNthCalledWith(2, 'Waiting for upterm to be ready... (1/10)');
     expect(core.info).toHaveBeenNthCalledWith(3, expect.stringContaining('SSH command available as output'));
     expect(core.info).toHaveBeenNthCalledWith(4, "Exiting debugging session because '/continue' file was created");
+  });
+
+  it('keeps runtime SSH customization behavior unchanged when new inputs are unset', async () => {
+    Object.defineProperty(process, 'platform', {
+      value: 'linux'
+    });
+    Object.defineProperty(process, 'arch', {
+      value: 'x64'
+    });
+    when(core.getInput).calledWith('limit-access-to-users').mockReturnValue('');
+    when(core.getInput).calledWith('limit-access-to-actor').mockReturnValue('false');
+    when(core.getInput).calledWith('wait-timeout-minutes').mockReturnValue('');
+    when(core.getInput).calledWith('upterm-server').mockReturnValue('ssh://myserver:22');
+
+    mockedExecShellCommand.mockImplementation((cmd: string) => {
+      if (cmd.includes('upterm session current')) {
+        return Promise.resolve('ssh test@upterm.dev');
+      }
+      return Promise.resolve('foobar');
+    });
+
+    await run();
+
+    expect(mockFs.appendFileSync).toHaveBeenCalledTimes(1);
+    expect(mockFs.appendFileSync).toHaveBeenCalledWith(SSH_CONFIG_PATH, expect.stringContaining('Host *'));
+
+    const sessionCommand = mockedExecShellCommand.mock.calls[2][0];
+    expect(sessionCommand).toContain("upterm host --skip-host-key-check --accept --server 'ssh://myserver:22'");
+    expect(sessionCommand).toContain("--force-command 'tmux attach -t upterm'");
+  });
+
+  it('appends custom SSH client config when provided', async () => {
+    Object.defineProperty(process, 'platform', {
+      value: 'linux'
+    });
+    Object.defineProperty(process, 'arch', {
+      value: 'x64'
+    });
+    when(core.getInput).calledWith('limit-access-to-users').mockReturnValue('');
+    when(core.getInput).calledWith('limit-access-to-actor').mockReturnValue('false');
+    when(core.getInput).calledWith('wait-timeout-minutes').mockReturnValue('');
+    when(core.getInput).calledWith('upterm-server').mockReturnValue('ssh://myserver:22');
+    when(core.getInput).calledWith('ssh-client-config-append').mockReturnValue('Host internal-service\n  Port 2222\n  User debug');
+
+    mockedExecShellCommand.mockImplementation((cmd: string) => {
+      if (cmd.includes('upterm session current')) {
+        return Promise.resolve('ssh test@upterm.dev');
+      }
+      return Promise.resolve('foobar');
+    });
+
+    await run();
+
+    expect(mockFs.appendFileSync).toHaveBeenNthCalledWith(1, SSH_CONFIG_PATH, expect.stringContaining('Host *'));
+    expect(mockFs.appendFileSync).toHaveBeenNthCalledWith(2, SSH_CONFIG_PATH, 'Host internal-service\n  Port 2222\n  User debug\n');
+  });
+
+  it('appends extra upterm host args before force-command when provided', async () => {
+    Object.defineProperty(process, 'platform', {
+      value: 'linux'
+    });
+    Object.defineProperty(process, 'arch', {
+      value: 'x64'
+    });
+    when(core.getInput).calledWith('limit-access-to-users').mockReturnValue('');
+    when(core.getInput).calledWith('limit-access-to-actor').mockReturnValue('false');
+    when(core.getInput).calledWith('wait-timeout-minutes').mockReturnValue('');
+    when(core.getInput).calledWith('upterm-server').mockReturnValue('ssh://myserver:22');
+    when(core.getInput).calledWith('upterm-host-extra-args').mockReturnValue('--permit-open localhost:3000');
+
+    mockedExecShellCommand.mockImplementation((cmd: string) => {
+      if (cmd.includes('upterm session current')) {
+        return Promise.resolve('ssh test@upterm.dev');
+      }
+      return Promise.resolve('foobar');
+    });
+
+    await run();
+
+    const sessionCommand = mockedExecShellCommand.mock.calls[2][0];
+    expect(sessionCommand).toContain("--permit-open localhost:3000 --force-command 'tmux attach -t upterm'");
   });
 
   it('uses specified upterm version for linux downloads', async () => {
@@ -656,6 +740,26 @@ describe('upterm GitHub integration', () => {
       expect(core.saveState).toHaveBeenCalledWith('isPost', 'true');
       expect(core.saveState).toHaveBeenCalledWith('message', expect.stringContaining('ssh user@session123.upterm.dev'));
       expect(core.saveState).toHaveBeenCalledWith('socketPath', expect.any(String));
+      expect(core.setOutput).toHaveBeenCalledWith('ssh-command', 'ssh user@session123.upterm.dev');
+      expect(core.info).toHaveBeenCalledWith('Detached mode: workflow will continue while upterm session is active');
+    });
+
+    it('should support both runtime SSH customization inputs in detached mode', async () => {
+      when(core.getInput).calledWith('detached').mockReturnValue('true');
+      when(core.getInput).calledWith('upterm-host-extra-args').mockReturnValue('--permit-open localhost:3000');
+      when(core.getInput).calledWith('ssh-client-config-append').mockReturnValue('Host internal-service\n  Port 2222');
+
+      mockedExecShellCommand.mockImplementation((cmd: string) => {
+        if (cmd.includes('upterm session current')) {
+          return Promise.resolve('SSH Session: ssh user@session123.upterm.dev');
+        }
+        return Promise.resolve('success');
+      });
+
+      await run();
+
+      expect(mockFs.appendFileSync).toHaveBeenNthCalledWith(2, SSH_CONFIG_PATH, 'Host internal-service\n  Port 2222\n');
+      expect(mockedExecShellCommand.mock.calls[2][0]).toContain("--permit-open localhost:3000 --force-command 'tmux attach -t upterm'");
       expect(core.setOutput).toHaveBeenCalledWith('ssh-command', 'ssh user@session123.upterm.dev');
       expect(core.info).toHaveBeenCalledWith('Detached mode: workflow will continue while upterm session is active');
     });

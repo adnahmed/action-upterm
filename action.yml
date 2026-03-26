@@ -29,6 +29,14 @@ inputs:
   upterm-version:
     description: "Upterm version/tag to install (e.g., v0.20.0). Works on all platforms. Defaults to latest when unset."
     required: false
+  upterm-host-extra-args:
+    description: "Advanced: raw extra arguments appended to 'upterm host'. Intended for trusted workflow-controlled Upterm host options."
+    required: false
+    default: ""
+  ssh-client-config-append:
+    description: "Optional raw text appended to the runner's ~/.ssh/config after the action's default SSH client settings."
+    required: false
+    default: ""
   detached:
     description: "In detached mode, the workflow job will continue while the upterm session is active"
     required: false

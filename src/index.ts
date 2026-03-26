@@ -328,7 +328,7 @@ async function generateSSHKeys(sshPath: string): Promise<void> {
   }
 }
 
-function configureSSHClient(sshPath: string): void {
+function configureSSHClient(sshPath: string, sshClientConfigAppend: string): void {
   core.debug('Configuring ssh client');
   const sshConfig = `Host *
   StrictHostKeyChecking no
@@ -340,14 +340,21 @@ function configureSSHClient(sshPath: string): void {
   UpdateHostKeys yes
   AddressFamily inet
 `;
-  fs.appendFileSync(path.join(sshPath, 'config'), sshConfig);
+  const sshConfigPath = path.join(sshPath, 'config');
+  fs.appendFileSync(sshConfigPath, sshConfig);
+
+  const customConfig = sshClientConfigAppend.trim();
+  if (customConfig) {
+    fs.appendFileSync(sshConfigPath, `${customConfig}\n`);
+  }
 }
 
 async function setupSSH(): Promise<void> {
   const sshPath = path.join(os.homedir(), '.ssh');
+  const sshClientConfigAppend = core.getInput('ssh-client-config-append') || '';
 
   await generateSSHKeys(sshPath);
-  configureSSHClient(sshPath);
+  configureSSHClient(sshPath, sshClientConfigAppend);
 }
 
 function getAllowedUsers(): string[] {
@@ -368,7 +375,11 @@ function buildAuthorizedKeysParameter(allowedUsers: string[]): string {
   return allowedUsers.map(user => `--github-user ${shellEscape(user)}`).join(' ') + ' ';
 }
 
-async function createUptermSession(uptermServer: string, authorizedKeysParameter: string): Promise<void> {
+async function createUptermSession(
+  uptermServer: string,
+  authorizedKeysParameter: string,
+  uptermHostExtraArgs: string
+): Promise<void> {
   core.info(`Creating a new session. Connecting to upterm server ${uptermServer}`);
 
   // Get deterministic paths for all upterm-related files
@@ -412,10 +423,11 @@ setw -g aggressive-resize on
   const tmuxConfPathPosix = toMsys2Path(tmuxConfPath);
   const tmuxConfFlagOuter = `-f ${shellEscape(tmuxConfPathShell)}`;
   const tmuxConfFlagInner = `-f ${tmuxConfPathPosix}`;
+  const extraHostArgsSegment = uptermHostExtraArgs ? `${uptermHostExtraArgs} ` : '';
 
   try {
     await execShellCommand(
-      `tmux ${tmuxConfFlagOuter} new -d -s upterm-wrapper -x ${TMUX_DIMENSIONS.width} -y ${TMUX_DIMENSIONS.height} "upterm host --skip-host-key-check --accept --server ${shellEscape(uptermServer)} ${authorizedKeysParameter} --force-command 'tmux attach -t upterm' -- tmux ${tmuxConfFlagInner} new -s upterm -f read-only -x ${TMUX_DIMENSIONS.width} -y ${TMUX_DIMENSIONS.height} 2>&1 | tee ${shellEscape(getUptermCommandLogPath())}" 2>${shellEscape(getTmuxErrorLogPath())}`
+      `tmux ${tmuxConfFlagOuter} new -d -s upterm-wrapper -x ${TMUX_DIMENSIONS.width} -y ${TMUX_DIMENSIONS.height} "upterm host --skip-host-key-check --accept --server ${shellEscape(uptermServer)} ${authorizedKeysParameter}${extraHostArgsSegment}--force-command 'tmux attach -t upterm' -- tmux ${tmuxConfFlagInner} new -s upterm -f read-only -x ${TMUX_DIMENSIONS.width} -y ${TMUX_DIMENSIONS.height} 2>&1 | tee ${shellEscape(getUptermCommandLogPath())}" 2>${shellEscape(getTmuxErrorLogPath())}`
     );
     core.debug('Created new session successfully');
   } catch (error) {
@@ -593,9 +605,10 @@ async function startUptermSession(): Promise<void> {
   const allowedUsers = getAllowedUsers();
   const authorizedKeysParameter = buildAuthorizedKeysParameter(allowedUsers);
   const uptermServer = core.getInput('upterm-server');
+  const uptermHostExtraArgs = (core.getInput('upterm-host-extra-args') || '').trim();
   const waitTimeoutMinutes = core.getInput('wait-timeout-minutes');
 
-  await createUptermSession(uptermServer, authorizedKeysParameter);
+  await createUptermSession(uptermServer, authorizedKeysParameter, uptermHostExtraArgs);
   await sleep(UPTERM_INIT_DELAY);
 
   if (waitTimeoutMinutes && core.getInput('detached') !== 'true') {

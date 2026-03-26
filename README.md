@@ -93,6 +93,49 @@ jobs:
 - Works on all platforms (Linux, macOS, and Windows).
 - On macOS, Upterm is installed from the GitHub release tarball (Homebrew is still used for installing `tmux` only).
 
+## Pass Extra Upterm Host Arguments
+
+For advanced Upterm host behavior, you can append raw arguments to the `upterm host` command with `upterm-host-extra-args`:
+
+```yaml
+name: CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup upterm session
+      uses: owenthereal/action-upterm@v1
+      with:
+        upterm-host-extra-args: --some-upterm-host-flag some-value
+```
+
+This input is the action's server/session-side escape hatch. It is passed through verbatim into `upterm host`, so it should only be built from trusted workflow-controlled values.
+
+## Append Runner SSH Client Config
+
+If your workflow needs custom SSH client behavior on the GitHub runner itself, append raw text to `~/.ssh/config` with `ssh-client-config-append`:
+
+```yaml
+name: CI
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup upterm session
+      uses: owenthereal/action-upterm@v1
+      with:
+        ssh-client-config-append: |
+          Host internal-service
+            Port 2222
+            User debug
+```
+
+This only affects SSH commands run inside the GitHub runner. It does not change the SSH client configuration on your local machine.
+
 ## Shut Down the Server if No User Connects
 
 If no user connects, the server automatically shuts down after a specified time. This feature is handy for deploying `action-upterm` to provide a debug shell on job failure without unnecessarily prolonging pipeline operation.
