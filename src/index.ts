@@ -8,7 +8,7 @@ import * as tc from '@actions/tool-cache';
 import {execShellCommand, sleep} from './helpers';
 
 // Constants
-const UPTERM_RELEASE_BASE_URL = 'https://github.com/owenthereal/upterm/releases';
+const UPTERM_RELEASE_BASE_URL = 'https://github.com/adnahmed/upterm/releases';
 const UPTERM_SOCKET_POLL_INTERVAL = 1000;
 const UPTERM_READY_MAX_RETRIES = 10;
 const SESSION_STATUS_POLL_INTERVAL = 5000;
@@ -328,7 +328,7 @@ async function generateSSHKeys(sshPath: string): Promise<void> {
   }
 }
 
-function configureSSHClient(sshPath: string, sshClientConfigAppend: string): void {
+function configureSSHClient(sshPath: string): void {
   core.debug('Configuring ssh client');
   const sshConfig = `Host *
   StrictHostKeyChecking no
@@ -342,19 +342,13 @@ function configureSSHClient(sshPath: string, sshClientConfigAppend: string): voi
 `;
   const sshConfigPath = path.join(sshPath, 'config');
   fs.appendFileSync(sshConfigPath, sshConfig);
-
-  const customConfig = sshClientConfigAppend.trim();
-  if (customConfig) {
-    fs.appendFileSync(sshConfigPath, `${customConfig}\n`);
-  }
 }
 
 async function setupSSH(): Promise<void> {
   const sshPath = path.join(os.homedir(), '.ssh');
-  const sshClientConfigAppend = core.getInput('ssh-client-config-append') || '';
 
   await generateSSHKeys(sshPath);
-  configureSSHClient(sshPath, sshClientConfigAppend);
+  configureSSHClient(sshPath);
 }
 
 function getAllowedUsers(): string[] {

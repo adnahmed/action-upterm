@@ -73,7 +73,6 @@ describe('upterm GitHub integration', () => {
     (mockFs.readdirSync as jest.Mock).mockReturnValue(['id_rsa', 'id_ed25519', 'hello.sock']);
     when(core.getInput).calledWith('upterm-version').mockReturnValue('');
     when(core.getInput).calledWith('upterm-host-extra-args').mockReturnValue('');
-    when(core.getInput).calledWith('ssh-client-config-append').mockReturnValue('');
   });
 
   afterAll(() => {
@@ -94,15 +93,15 @@ describe('upterm GitHub integration', () => {
 
     it('builds download url for latest release when version unset', () => {
       when(core.getInput).calledWith('upterm-version').mockReturnValue('');
-      expect(getUptermDownloadUrl('linux', 'x64')).toBe('https://github.com/owenthereal/upterm/releases/latest/download/upterm_linux_amd64.tar.gz');
-      expect(getUptermDownloadUrl('darwin', 'arm64')).toBe('https://github.com/owenthereal/upterm/releases/latest/download/upterm_darwin_arm64.tar.gz');
-      expect(getUptermDownloadUrl('win32', 'x64')).toBe('https://github.com/owenthereal/upterm/releases/latest/download/upterm_windows_amd64.tar.gz');
+      expect(getUptermDownloadUrl('linux', 'x64')).toBe('https://github.com/adnahmed/upterm/releases/latest/download/upterm_linux_amd64.tar.gz');
+      expect(getUptermDownloadUrl('darwin', 'arm64')).toBe('https://github.com/adnahmed/upterm/releases/latest/download/upterm_darwin_arm64.tar.gz');
+      expect(getUptermDownloadUrl('win32', 'x64')).toBe('https://github.com/adnahmed/upterm/releases/latest/download/upterm_windows_amd64.tar.gz');
     });
 
     it('builds download url for specific release when version provided', () => {
-      when(core.getInput).calledWith('upterm-version').mockReturnValue('v0.20.0');
-      expect(getUptermDownloadUrl('linux', 'x64')).toBe('https://github.com/owenthereal/upterm/releases/download/v0.20.0/upterm_linux_amd64.tar.gz');
-      expect(getUptermDownloadUrl('win32', 'arm64')).toBe('https://github.com/owenthereal/upterm/releases/download/v0.20.0/upterm_windows_arm64.tar.gz');
+      when(core.getInput).calledWith('upterm-version').mockReturnValue('v0.23.0');
+      expect(getUptermDownloadUrl('linux', 'x64')).toBe('https://github.com/adnahmed/upterm/releases/download/v0.23.0/upterm_linux_amd64.tar.gz');
+      expect(getUptermDownloadUrl('win32', 'arm64')).toBe('https://github.com/adnahmed/upterm/releases/download/v0.23.0/upterm_windows_arm64.tar.gz');
     });
   });
 
@@ -127,7 +126,7 @@ describe('upterm GitHub integration', () => {
     });
     await run();
 
-    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/owenthereal/upterm/releases/latest/download/upterm_windows_amd64.tar.gz');
+    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/adnahmed/upterm/releases/latest/download/upterm_windows_amd64.tar.gz');
     expect(mockedToolCache.extractTar).toHaveBeenCalledWith(DOWNLOAD_PATH);
     expect(core.addPath).toHaveBeenCalledWith(EXTRACT_DIR);
 
@@ -170,7 +169,7 @@ describe('upterm GitHub integration', () => {
     });
     await run();
 
-    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/owenthereal/upterm/releases/latest/download/upterm_linux_amd64.tar.gz');
+    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/adnahmed/upterm/releases/latest/download/upterm_linux_amd64.tar.gz');
     expect(mockedToolCache.extractTar).toHaveBeenCalledWith(DOWNLOAD_PATH);
     expect(core.addPath).toHaveBeenCalledWith(EXTRACT_DIR);
 
@@ -217,32 +216,6 @@ describe('upterm GitHub integration', () => {
     expect(sessionCommand).toContain("--force-command 'tmux attach -t upterm'");
   });
 
-  it('appends custom SSH client config when provided', async () => {
-    Object.defineProperty(process, 'platform', {
-      value: 'linux'
-    });
-    Object.defineProperty(process, 'arch', {
-      value: 'x64'
-    });
-    when(core.getInput).calledWith('limit-access-to-users').mockReturnValue('');
-    when(core.getInput).calledWith('limit-access-to-actor').mockReturnValue('false');
-    when(core.getInput).calledWith('wait-timeout-minutes').mockReturnValue('');
-    when(core.getInput).calledWith('upterm-server').mockReturnValue('ssh://myserver:22');
-    when(core.getInput).calledWith('ssh-client-config-append').mockReturnValue('Host internal-service\n  Port 2222\n  User debug');
-
-    mockedExecShellCommand.mockImplementation((cmd: string) => {
-      if (cmd.includes('upterm session current')) {
-        return Promise.resolve('ssh test@upterm.dev');
-      }
-      return Promise.resolve('foobar');
-    });
-
-    await run();
-
-    expect(mockFs.appendFileSync).toHaveBeenNthCalledWith(1, SSH_CONFIG_PATH, expect.stringContaining('Host *'));
-    expect(mockFs.appendFileSync).toHaveBeenNthCalledWith(2, SSH_CONFIG_PATH, 'Host internal-service\n  Port 2222\n  User debug\n');
-  });
-
   it('appends extra upterm host args before force-command when provided', async () => {
     Object.defineProperty(process, 'platform', {
       value: 'linux'
@@ -280,12 +253,12 @@ describe('upterm GitHub integration', () => {
     when(core.getInput).calledWith('limit-access-to-actor').mockReturnValue('false');
     when(core.getInput).calledWith('wait-timeout-minutes').mockReturnValue('');
     when(core.getInput).calledWith('upterm-server').mockReturnValue('ssh://myserver:22');
-    when(core.getInput).calledWith('upterm-version').mockReturnValue('v0.20.0');
+    when(core.getInput).calledWith('upterm-version').mockReturnValue('v0.23.0');
 
     mockedExecShellCommand.mockReturnValue(Promise.resolve('foobar'));
     await run();
 
-    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/owenthereal/upterm/releases/download/v0.20.0/upterm_linux_amd64.tar.gz');
+    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/adnahmed/upterm/releases/download/v0.23.0/upterm_linux_amd64.tar.gz');
   });
 
   it('uses specified upterm version for windows downloads', async () => {
@@ -299,12 +272,12 @@ describe('upterm GitHub integration', () => {
     when(core.getInput).calledWith('limit-access-to-actor').mockReturnValue('false');
     when(core.getInput).calledWith('wait-timeout-minutes').mockReturnValue('');
     when(core.getInput).calledWith('upterm-server').mockReturnValue('ssh://myserver:22');
-    when(core.getInput).calledWith('upterm-version').mockReturnValue('v0.20.0');
+    when(core.getInput).calledWith('upterm-version').mockReturnValue('v0.23.0');
 
     mockedExecShellCommand.mockReturnValue(Promise.resolve('foobar'));
     await run();
 
-    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/owenthereal/upterm/releases/download/v0.20.0/upterm_windows_amd64.tar.gz');
+    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/adnahmed/upterm/releases/download/v0.23.0/upterm_windows_amd64.tar.gz');
   });
 
   it('should handle the main loop for linux arm64', async () => {
@@ -327,7 +300,7 @@ describe('upterm GitHub integration', () => {
     });
     await run();
 
-    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/owenthereal/upterm/releases/latest/download/upterm_linux_arm64.tar.gz');
+    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/adnahmed/upterm/releases/latest/download/upterm_linux_arm64.tar.gz');
     expect(mockedToolCache.extractTar).toHaveBeenCalledWith(DOWNLOAD_PATH);
     expect(core.addPath).toHaveBeenCalledWith(EXTRACT_DIR);
 
@@ -365,7 +338,7 @@ describe('upterm GitHub integration', () => {
     });
     await run();
 
-    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/owenthereal/upterm/releases/latest/download/upterm_windows_arm64.tar.gz');
+    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/adnahmed/upterm/releases/latest/download/upterm_windows_arm64.tar.gz');
     expect(mockedToolCache.extractTar).toHaveBeenCalledWith(DOWNLOAD_PATH);
     expect(core.addPath).toHaveBeenCalledWith(EXTRACT_DIR);
 
@@ -439,7 +412,7 @@ describe('upterm GitHub integration', () => {
     });
     await run();
 
-    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/owenthereal/upterm/releases/latest/download/upterm_darwin_amd64.tar.gz');
+    expect(mockedToolCache.downloadTool).toHaveBeenCalledWith('https://github.com/adnahmed/upterm/releases/latest/download/upterm_darwin_amd64.tar.gz');
     expect(mockedToolCache.extractTar).toHaveBeenCalledWith(DOWNLOAD_PATH);
     expect(core.addPath).toHaveBeenCalledWith(EXTRACT_DIR);
     expect(mockedExecShellCommand).toHaveBeenNthCalledWith(1, 'brew install tmux');
@@ -744,10 +717,9 @@ describe('upterm GitHub integration', () => {
       expect(core.info).toHaveBeenCalledWith('Detached mode: workflow will continue while upterm session is active');
     });
 
-    it('should support both runtime SSH customization inputs in detached mode', async () => {
+    it('should support extra upterm host args in detached mode', async () => {
       when(core.getInput).calledWith('detached').mockReturnValue('true');
       when(core.getInput).calledWith('upterm-host-extra-args').mockReturnValue('--permit-open localhost:3000');
-      when(core.getInput).calledWith('ssh-client-config-append').mockReturnValue('Host internal-service\n  Port 2222');
 
       mockedExecShellCommand.mockImplementation((cmd: string) => {
         if (cmd.includes('upterm session current')) {
@@ -758,7 +730,6 @@ describe('upterm GitHub integration', () => {
 
       await run();
 
-      expect(mockFs.appendFileSync).toHaveBeenNthCalledWith(2, SSH_CONFIG_PATH, 'Host internal-service\n  Port 2222\n');
       expect(mockedExecShellCommand.mock.calls[2][0]).toContain("--permit-open localhost:3000 --force-command 'tmux attach -t upterm'");
       expect(core.setOutput).toHaveBeenCalledWith('ssh-command', 'ssh user@session123.upterm.dev');
       expect(core.info).toHaveBeenCalledWith('Detached mode: workflow will continue while upterm session is active');

@@ -74,7 +74,7 @@ jobs:
 
 ## Pin a Specific Upterm Version
 
-By default, the action downloads the latest Upterm release directly from GitHub. To pin a specific release (for example, `v0.20.0`), provide the optional `upterm-version` input:
+By default, the action downloads the latest Upterm release from the forked [`adnahmed/upterm`](https://github.com/adnahmed/upterm/releases) GitHub releases. To pin a specific release such as `v0.23.0`, provide the optional `upterm-version` input:
 
 ```yaml
 name: CI
@@ -87,7 +87,7 @@ jobs:
     - name: Setup upterm session
       uses: owenthereal/action-upterm@v1
       with:
-        upterm-version: v0.20.0
+        upterm-version: v0.23.0
 ```
 
 - Works on all platforms (Linux, macOS, and Windows).
@@ -108,33 +108,18 @@ jobs:
     - name: Setup upterm session
       uses: owenthereal/action-upterm@v1
       with:
-        upterm-host-extra-args: --some-upterm-host-flag some-value
+        upterm-host-extra-args: --permit-open 127.0.0.1:4449 --permit-open 127.0.0.1:4450
 ```
 
 This input is the action's server/session-side escape hatch. It is passed through verbatim into `upterm host`, so it should only be built from trusted workflow-controlled values.
 
-## Append Runner SSH Client Config
+To forward host services back to your local machine, allow them on the hosted session and then add local forwards when connecting:
 
-If your workflow needs custom SSH client behavior on the GitHub runner itself, append raw text to `~/.ssh/config` with `ssh-client-config-append`:
-
-```yaml
-name: CI
-on: [push]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Setup upterm session
-      uses: owenthereal/action-upterm@v1
-      with:
-        ssh-client-config-append: |
-          Host internal-service
-            Port 2222
-            User debug
+```bash
+ssh -L 4449:127.0.0.1:4449 -L 4450:127.0.0.1:4450 TOKEN@HOST
 ```
 
-This only affects SSH commands run inside the GitHub runner. It does not change the SSH client configuration on your local machine.
+The `ssh-command` output from the action remains the base connection command. Prepend your own `-L` flags locally when you want port forwarding.
 
 ## Shut Down the Server if No User Connects
 
